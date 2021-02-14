@@ -2,21 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Version>1.0.0</Version>
-    <Title>MarsArmories.ImperialDate</Title>
-    <Authors>MarsArmories</Authors>
-    <Description>A .NET Standard implementation of the 40k Imperial date similar to DateTime.</Description>
-    <PackageProjectUrl>https://github.com/MarsArmories/ImperialDate</PackageProjectUrl>
-    <Packagelic>https://github.com/MarsArmories/ImperialDate/blob/master/LICENSE</Packagelic>
-    <RepositoryUrl>https://github.com/MarsArmories/ImperialDate.git</RepositoryUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryType>git</RepositoryType>
-    <PackageVersion>1.0.1</PackageVersion>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
