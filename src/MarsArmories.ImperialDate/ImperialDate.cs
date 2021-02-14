@@ -7,18 +7,18 @@ namespace MarsArmories.ImperialDate
     using System.Runtime.InteropServices;
 
     [StructLayout(LayoutKind.Auto)]
-    public struct ImperialDate : IComparable, IFormattable, IComparable<ImperialDate>, IEquatable<ImperialDate>
+    public readonly struct ImperialDate : IComparable, IFormattable, IComparable<ImperialDate>, IEquatable<ImperialDate>
     {
-        public CheckValue Check { get; private set; }
-        public int YearFraction { get; private set; }
-        public int Year { get; private set; }
-        public int Millennium { get; private set; }
+        public CheckValue Check { get; }
+        public int YearFraction { get; }
+        public int Year { get; }
+        public int Millennium { get; }
 
         public long Ticks => ImperialDateConverters.ConvertToTicks(this);
 
-        public static ImperialDate MinValue => new ImperialDate(0, Constants.MinYearFraction, Constants.MinYear, Constants.MinMillenium);
+        public static ImperialDate MinValue => new ImperialDate(0, Constants.MinYearFraction, Constants.MinYear, Constants.MinMillennium);
 
-        public static ImperialDate MaxValue => new ImperialDate(CheckValue.Warp, Constants.MaxYearFraction, Constants.MaxYear, Constants.MaxMillenium);
+        public static ImperialDate MaxValue => new ImperialDate(CheckValue.Warp, Constants.MaxYearFraction, Constants.MaxYear, Constants.MaxMillennium);
 
         public static ImperialDate Now => new ImperialDate(DateTime.Now);
 
@@ -38,7 +38,7 @@ namespace MarsArmories.ImperialDate
             }
             if (millennium < 0)
             {
-                throw new ArgumentException("Millenium must be greater than or equal to 0", nameof(Millennium));
+                throw new ArgumentException("Millennium must be greater than or equal to 0", nameof(Millennium));
             }
             Check = check;
             YearFraction = yearFraction;

@@ -12,11 +12,12 @@ namespace MarsArmories.ImperialDate.Internal
 
         internal static ImperialDate ConvertFromDateTime(DateTime date)
         {
-            var checkNumber = 0;
+            // Since DateTime is an earth construct, assume Terra
+            const CheckValue checkValue = CheckValue.Terra;
 
             if (date.Equals(DateTime.MinValue))
             {
-                return new ImperialDate((CheckValue)checkNumber, 1, 1, 0);
+                return new ImperialDate(checkValue, 1, 1, 0);
             }
 
             var yearRemaining = date - date.LastDayOfYear();
@@ -34,25 +35,25 @@ namespace MarsArmories.ImperialDate.Internal
 
             var year = date.Year % 1000;
 
-            var millenium = (int)Math.Ceiling(date.Year / 1000.00);
+            var millennium = (int)Math.Ceiling(date.Year / 1000.00);
 
-            return new ImperialDate((CheckValue)checkNumber, yearFraction, year, millenium);
+            return new ImperialDate(checkValue, yearFraction, year, millennium);
         }
 
         internal static ImperialDate ConvertFromTicks(long ticks)
         {
-            int millenium = (int)(ticks / 1_000_000_000);
-            int year = (int)(ticks / 1_000_000) - (millenium * 1_000);
-            int yearFraction = (int)(ticks / 1_000) - (millenium * 1_000_000 + year * 1_000);
-            int check = (int)(ticks - (millenium * 1_000_000_000 + year * 1_000_000 + yearFraction * 1_000));
-            if (millenium < Constants.MinMillenium
+            var millennium = (int)(ticks / 1_000_000_000);
+            var year = (int)(ticks / 1_000_000) - (millennium * 1_000);
+            var yearFraction = (int)(ticks / 1_000) - (millennium * 1_000_000 + year * 1_000);
+            var check = (int)(ticks - (millennium * 1_000_000_000 + year * 1_000_000 + yearFraction * 1_000));
+            if (millennium < Constants.MinMillennium
                 || year <= Constants.MinYear
                 || yearFraction <= Constants.MinYearFraction
                 || !Enum.IsDefined(typeof(CheckValue), check))
             {
                 throw new ArgumentException("Invalid ticks format");
             }
-            return new ImperialDate((CheckValue)check, yearFraction, year, millenium);
+            return new ImperialDate((CheckValue)check, yearFraction, year, millennium);
         }
 
         internal static long ConvertToTicks(ImperialDate date)

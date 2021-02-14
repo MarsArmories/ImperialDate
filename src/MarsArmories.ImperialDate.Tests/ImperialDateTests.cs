@@ -153,7 +153,7 @@ namespace MarsArmories.ImperialDate.Tests
         public void ImperialDate_MaxValue_Millennium_Should_Be_999_999()
         {
             var maxValue = ImperialDate.MaxValue;
-            maxValue.Millennium.Should().Be(Internal.Constants.MaxMillenium);
+            maxValue.Millennium.Should().Be(Internal.Constants.MaxMillennium);
         }
 
         [Fact]

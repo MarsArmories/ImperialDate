@@ -6,10 +6,10 @@ namespace MarsArmories.ImperialDate.Internal
     {
         internal const int MinYearFraction = 1;
         internal const int MinYear = 1;
-        internal const int MinMillenium = 0;
+        internal const int MinMillennium = 0;
         internal const int MaxYearFraction = 999;
         internal const int MaxYear = 999;
-        internal const int MaxMillenium = 999_999;
+        internal const int MaxMillennium = 999_999;
 
         internal const int SecondsInHour = 3600;
         internal const int SecondsInDay = 86400;
