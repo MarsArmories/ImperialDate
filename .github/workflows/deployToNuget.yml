@@ -1,0 +1,47 @@
+name: Deploy To Nuget
+
+defaults:
+  run:
+    working-directory: src
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    
+    env:
+      solution:  ./MarsArmories.ImperialDate.sln
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.x
+    - name: Restore dependencies
+      run: dotnet restore $solution
+    - name: Build
+      run: dotnet build --no-restore $solution
+    - name: Test
+      run: dotnet test --no-build --verbosity normal $solution
+        
+  deploy:
+    
+    env:
+      project: ./MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj
+    
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2 
+    - name: Publish to Nuget
+      uses: brandedoutcast/publish-nuget@v2.5.5
+      with:
+        PROJECT_FILE_PATH: $project
+        NUGET_KEY: ${{secrets.NUGET_API_KEY}}
