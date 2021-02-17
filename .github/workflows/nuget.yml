@@ -26,7 +26,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore $solution
     - name: Build
-      run: dotnet build --no-restore --configuration Release $solution
+      run: dotnet build --no-restore $solution
     - name: Test
       run: dotnet test --no-build --verbosity normal $solution
     - name: Publish to Nuget
@@ -38,6 +38,6 @@ jobs:
         VERSION_REGEX: <PackageVersion>(.*)<\/PackageVersion>
         INCLUDE_SYMBOLS: true
     - name: Pack
-      run: dotnet pack --no-build --configuration Release src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj --output .
+      run: dotnet pack --configuration Release src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj --output .
     - name: Publish to Github
       run: dotnet nuget push *.nupkg --no-symbols --skip-duplicate
