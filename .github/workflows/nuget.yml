@@ -6,12 +6,20 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: publish-nuget-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
+  packages: write
 
 env:
   SOLUTION_PATH: src/MarsArmories.ImperialDate.slnx
   PROJECT_PATH: src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj
+  # Optional override in MAJOR.MINOR format (for example: 2.1).
+  # Leave empty to derive MAJOR.MINOR from the project PackageVersion.
+  PACKAGE_MAJOR_MINOR: ""
 
 jobs:
   build-test-pack-publish:
@@ -38,21 +46,66 @@ jobs:
       id: package_version
       shell: bash
       run: |
+        set -euo pipefail
+
         BASE_VERSION="$(dotnet msbuild "${PROJECT_PATH}" -nologo -getProperty:PackageVersion)"
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          FINAL_VERSION="${BASE_VERSION}-pr.${{ github.event.pull_request.number }}.${{ github.run_number }}"
-        else
-          FINAL_VERSION="${BASE_VERSION}"
+        PACKAGE_ID="$(dotnet msbuild "${PROJECT_PATH}" -nologo -getProperty:PackageId)"
+        if [[ -z "${PACKAGE_ID}" ]]; then
+          PACKAGE_ID="$(basename "${PROJECT_PATH}" .csproj)"
         fi
 
+        if [[ -n "${PACKAGE_MAJOR_MINOR}" ]]; then
+          MAJOR_MINOR="${PACKAGE_MAJOR_MINOR}"
+        else
+          if [[ "${BASE_VERSION}" =~ ^([0-9]+)\.([0-9]+)(\.[0-9]+)?([-+].*)?$ ]]; then
+            MAJOR_MINOR="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          else
+            echo "Unable to parse major.minor from PackageVersion '${BASE_VERSION}'"
+            exit 1
+          fi
+        fi
+
+        if [[ ! "${MAJOR_MINOR}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+          echo "PACKAGE_MAJOR_MINOR must be MAJOR.MINOR, got '${MAJOR_MINOR}'"
+          exit 1
+        fi
+
+        # Use NuGet.org as the stable version source of truth.
+        NUGET_ID_LOWER="$(echo "${PACKAGE_ID}" | tr '[:upper:]' '[:lower:]')"
+        NUGET_VERSIONS="$(curl -fsSL "https://api.nuget.org/v3-flatcontainer/${NUGET_ID_LOWER}/index.json" || true)"
+
+        if python3 -c 'import json,sys; json.loads(sys.argv[1])' "${NUGET_VERSIONS}" >/dev/null 2>&1; then
+          LATEST_PATCH="$(python3 -c 'import json,re,sys; mm=sys.argv[1]; payload=json.loads(sys.argv[2]); versions=(payload.get("versions", []) if isinstance(payload, dict) else []); rx=re.compile(rf"^{re.escape(mm)}\\.(\\d+)$"); patches=[int(m.group(1)) for v in versions for m in [rx.match(v)] if m]; print(max(patches) if patches else -1)' "${MAJOR_MINOR}" "${NUGET_VERSIONS}")"
+        else
+          LATEST_PATCH=-1
+        fi
+
+        if [[ "${LATEST_PATCH}" -lt 0 ]]; then
+          NEXT_PATCH=0
+        else
+          NEXT_PATCH=$((LATEST_PATCH + 1))
+        fi
+
+        STABLE_VERSION="${MAJOR_MINOR}.${NEXT_PATCH}"
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          FINAL_VERSION="${STABLE_VERSION}-pr.${{ github.event.pull_request.number }}.${{ github.run_number }}"
+        else
+          FINAL_VERSION="${STABLE_VERSION}"
+        fi
+
+        echo "PackageId=${PACKAGE_ID}"
+        echo "BaseVersion=${BASE_VERSION}"
+        echo "MajorMinor=${MAJOR_MINOR}"
+        echo "LatestPatch=${LATEST_PATCH}"
+        echo "ResolvedVersion=${FINAL_VERSION}"
+
         echo "value=${FINAL_VERSION}" >> "$GITHUB_OUTPUT"
-        echo "Packaging with version ${FINAL_VERSION}"
 
     - name: Pack
-      run: dotnet pack "${PROJECT_PATH}" --configuration Release --no-build --output artifacts /p:PackageVersion=${{ steps.package_version.outputs.value }}
+      run: dotnet pack "${PROJECT_PATH}" --configuration Release --no-build --output artifacts "/p:PackageVersion=${{ steps.package_version.outputs.value }}"
 
     - name: Publish to NuGet.org
-      if: ${{ secrets.NUGET_API_KEY != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+      if: ${{ secrets.NUGET_API_KEY != '' && github.event_name == 'push' }}
       shell: bash
       run: |
         shopt -s nullglob
