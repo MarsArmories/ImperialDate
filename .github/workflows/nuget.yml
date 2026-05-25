@@ -1,43 +1,72 @@
-name: Deploy To Nuget
+name: Build, Test, and Publish Packages
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+env:
+  SOLUTION_PATH: src/MarsArmories.ImperialDate.slnx
+  PROJECT_PATH: src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj
 
 jobs:
-  build:
-    
-    env:
-      solution:  src/MarsArmories.ImperialDate.sln
-
+  build-test-pack-publish:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+
     - name: Setup .NET
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 5.0.x
-        source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
-      env:
-        NUGET_AUTH_TOKEN: ${{ github.token }}
+        global-json-file: global.json
+
     - name: Restore dependencies
-      run: dotnet restore $solution
+      run: dotnet restore "${SOLUTION_PATH}"
+
     - name: Build
-      run: dotnet build --no-restore $solution
+      run: dotnet build "${SOLUTION_PATH}" --configuration Release --no-restore
+
     - name: Test
-      run: dotnet test --no-build --verbosity normal $solution
-    - name: Publish to Nuget
-      uses: brandedoutcast/publish-nuget@v2.5.5
-      with:
-        PROJECT_FILE_PATH: src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj
-        NUGET_KEY: ${{secrets.NUGET_API_KEY}}
-        NUGET_SOURCE: https://api.nuget.org
-        VERSION_REGEX: <PackageVersion>(.*)<\/PackageVersion>
-        INCLUDE_SYMBOLS: true
+      run: dotnet test "${SOLUTION_PATH}" --configuration Release --no-build --verbosity normal
+
+    - name: Resolve package version
+      id: package_version
+      shell: bash
+      run: |
+        BASE_VERSION="$(dotnet msbuild "${PROJECT_PATH}" -nologo -getProperty:PackageVersion)"
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          FINAL_VERSION="${BASE_VERSION}-pr.${{ github.event.pull_request.number }}.${{ github.run_number }}"
+        else
+          FINAL_VERSION="${BASE_VERSION}"
+        fi
+
+        echo "value=${FINAL_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "Packaging with version ${FINAL_VERSION}"
+
     - name: Pack
-      run: dotnet pack --configuration Release src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj --output .
-    - name: Publish to Github
-      run: dotnet nuget push *.nupkg --no-symbols --skip-duplicate
+      run: dotnet pack "${PROJECT_PATH}" --configuration Release --no-build --output artifacts /p:PackageVersion=${{ steps.package_version.outputs.value }}
+
+    - name: Publish to NuGet.org
+      if: ${{ secrets.NUGET_API_KEY != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+      shell: bash
+      run: |
+        shopt -s nullglob
+        for package in artifacts/*.nupkg artifacts/*.snupkg; do
+          dotnet nuget push "$package" --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+        done
+
+    - name: Publish to GitHub Packages
+      if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        shopt -s nullglob
+        for package in artifacts/*.nupkg; do
+          dotnet nuget push "$package" --api-key "${GITHUB_TOKEN}" --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" --skip-duplicate
+        done
