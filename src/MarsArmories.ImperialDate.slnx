@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="build.props" Type="C#">
+    <BuildType Project="?" />
+    <Platform Project="?" />
+    <Build Project="false" />
+  </Project>
+  <Project Path="MarsArmories.ImperialDate.Tests/MarsArmories.ImperialDate.Tests.csproj" />
+  <Project Path="MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj" />
+</Solution>

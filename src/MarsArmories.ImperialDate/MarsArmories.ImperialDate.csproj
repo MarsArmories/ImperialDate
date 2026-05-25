@@ -1,10 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <PackageVersion>1.0.2</PackageVersion>
+    <PackageVersion>2.0.0</PackageVersion>
     <Title>MarsArmories.ImperialDate</Title>
-    <Description>A .NET Standard implementation of the 40k Imperial date similar to DateTime.</Description>
+    <Description>A .NET implementation of the 40k Imperial date similar to DateTime.</Description>
     <Authors>MarsArmories</Authors>
     <PackageProjectUrl>https://github.com/MarsArmories/ImperialDate</PackageProjectUrl>
     <RepositoryUrl>https://github.com/MarsArmories/ImperialDate.git</RepositoryUrl>
@@ -18,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Bcl.HashCode" Version="1.1.1" />
+    <PackageReference Include="Microsoft.Bcl.HashCode" Version="6.0.0" />
   </ItemGroup>
 
 </Project>

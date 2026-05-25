@@ -1,34 +1,16 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
-
-    <IsPackable>false</IsPackable>
-  </PropertyGroup>
+<Project Sdk="MSTest.Sdk">
 
   <ItemGroup>
-    <PackageReference Include="FluentAssertions" Version="6.0.0-alpha0002" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.9.0-preview-20210127-04" />
-    <PackageReference Include="xunit" Version="2.4.1" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="coverlet.collector" Version="3.0.2">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="AwesomeAssertions" Version="9.4.0" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="3.2.2" />
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" Version="2.2.3" />
+    <!-- Needed for Rider as it's got a bug and doesn't support MTPv2 -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MarsArmories.ImperialDate\MarsArmories.ImperialDate.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Remove="xunit.runner.json" />
-    <Content Include="xunit.runner.json" >
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
 
 </Project>
