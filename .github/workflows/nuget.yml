@@ -105,12 +105,17 @@ jobs:
       run: dotnet pack "${PROJECT_PATH}" --configuration Release --no-build --output artifacts "/p:PackageVersion=${{ steps.package_version.outputs.value }}"
 
     - name: Publish to NuGet.org
-      if: ${{ secrets.NUGET_API_KEY != '' && github.event_name == 'push' }}
+      if: ${{ github.event_name == 'push' && env.NUGET_API_KEY != '' }}
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       shell: bash
       run: |
         shopt -s nullglob
         for package in artifacts/*.nupkg artifacts/*.snupkg; do
-          dotnet nuget push "$package" --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+          dotnet nuget push "$package" \
+            --api-key "${NUGET_API_KEY}" \
+            --source "https://api.nuget.org/v3/index.json" \
+            --skip-duplicate
         done
 
     - name: Publish to GitHub Packages
