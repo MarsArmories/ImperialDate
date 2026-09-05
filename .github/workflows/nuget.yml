@@ -116,8 +116,12 @@ jobs:
             echo 'NuGet.org publishing skipped: NUGET_API_KEY is not configured.'
             exit 0
           fi
-          # NuGet pushes the matching .snupkg alongside each .nupkg.
+          shopt -s nullglob
+          # Publish packages and symbols explicitly, without uploading symbols twice.
           for package in packages/*.nupkg; do
+            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --no-symbols --skip-duplicate
+          done
+          for package in packages/*.snupkg; do
             dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
 
