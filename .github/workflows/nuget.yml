@@ -12,119 +12,126 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
 
 env:
-  SOLUTION_PATH: src/MarsArmories.ImperialDate.slnx
+  SOLUTION_PATH: MarsArmories.ImperialDate.slnx
   PROJECT_PATH: src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj
-  # Optional override in MAJOR.MINOR format (for example: 2.1).
-  # Leave empty to derive MAJOR.MINOR from the project PackageVersion.
+  # Optional MAJOR.MINOR override; otherwise use the project's PackageVersion.
   PACKAGE_MAJOR_MINOR: ""
 
 jobs:
-  build-test-pack-publish:
+  build-test-pack:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        global-json-file: src/global.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
 
-    - name: Restore dependencies
-      run: dotnet restore "${SOLUTION_PATH}"
+      - name: Test package version resolution
+        shell: pwsh
+        run: ./.github/scripts/Test-PackageVersion.ps1
 
-    - name: Build
-      run: dotnet build "${SOLUTION_PATH}" --configuration Release --no-restore
+      - name: Restore dependencies
+        run: dotnet restore "$SOLUTION_PATH"
 
-    - name: Test
-      run: dotnet test "${SOLUTION_PATH}" --configuration Release --no-build --verbosity normal
+      - name: Resolve package version
+        id: package_version
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          . ./.github/scripts/Get-PackageVersion.ps1
+          $baseVersion = dotnet msbuild $env:PROJECT_PATH -nologo -getProperty:PackageVersion
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read PackageVersion' }
+          $packageId = dotnet msbuild $env:PROJECT_PATH -nologo -getProperty:PackageId
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read PackageId' }
+          $uri = "https://api.nuget.org/v3-flatcontainer/$($packageId.ToLowerInvariant())/index.json"
+          try {
+            $response = Invoke-RestMethod -Uri $uri -MaximumRetryCount 3 -TimeoutSec 30
+            if ($null -eq $response.versions) { throw 'NuGet response has no versions array' }
+            $versions = @($response.versions)
+          } catch {
+            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) {
+              $versions = @()
+            } else { throw }
+          }
+          $version = Get-PackageVersion -BaseVersion $baseVersion -MajorMinor $env:PACKAGE_MAJOR_MINOR -PublishedVersions $versions -PullRequestNumber ([int]$env:PR_NUMBER) -RunNumber ([int]$env:GITHUB_RUN_NUMBER) -RunAttempt ([int]$env:GITHUB_RUN_ATTEMPT)
+          "Resolved package version: $version"
+          "value=$version" >> $env:GITHUB_OUTPUT
 
-    - name: Resolve package version
-      id: package_version
-      shell: bash
-      run: |
-        set -euo pipefail
+      - name: Build
+        env:
+          PACKAGE_VERSION: ${{ steps.package_version.outputs.value }}
+        run: dotnet build "$SOLUTION_PATH" --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:Version="$PACKAGE_VERSION" -p:PackageVersion="$PACKAGE_VERSION" -warnaserror
 
-        BASE_VERSION="$(dotnet msbuild "${PROJECT_PATH}" -nologo -getProperty:PackageVersion)"
-        PACKAGE_ID="$(dotnet msbuild "${PROJECT_PATH}" -nologo -getProperty:PackageId)"
-        if [[ -z "${PACKAGE_ID}" ]]; then
-          PACKAGE_ID="$(basename "${PROJECT_PATH}" .csproj)"
-        fi
+      - name: Test
+        run: dotnet test --solution "$SOLUTION_PATH" --configuration Release --no-build
 
-        if [[ -n "${PACKAGE_MAJOR_MINOR}" ]]; then
-          MAJOR_MINOR="${PACKAGE_MAJOR_MINOR}"
-        else
-          if [[ "${BASE_VERSION}" =~ ^([0-9]+)\.([0-9]+)(\.[0-9]+)?([-+].*)?$ ]]; then
-            MAJOR_MINOR="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
-          else
-            echo "Unable to parse major.minor from PackageVersion '${BASE_VERSION}'"
-            exit 1
+      - name: Pack
+        env:
+          PACKAGE_VERSION: ${{ steps.package_version.outputs.value }}
+        run: dotnet pack "$PROJECT_PATH" --configuration Release --no-build --output .artifacts/packages -p:ContinuousIntegrationBuild=true -p:Version="$PACKAGE_VERSION" -p:PackageVersion="$PACKAGE_VERSION"
+
+      - name: Retain packages and symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            .artifacts/packages/*.nupkg
+            .artifacts/packages/*.snupkg
+          if-no-files-found: error
+          include-hidden-files: true
+
+  publish:
+    needs: build-test-pack
+    if: ${{ github.actor != 'dependabot[bot]' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: packages
+
+      - name: Publish to NuGet.org
+        if: github.event_name == 'push'
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$NUGET_API_KEY" ]]; then
+            echo 'NuGet.org publishing skipped: NUGET_API_KEY is not configured.'
+            exit 0
           fi
-        fi
+          shopt -s nullglob
+          # Publish packages and symbols explicitly, without uploading symbols twice.
+          for package in packages/*.nupkg; do
+            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --no-symbols --skip-duplicate
+          done
+          for package in packages/*.snupkg; do
+            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
 
-        if [[ ! "${MAJOR_MINOR}" =~ ^[0-9]+\.[0-9]+$ ]]; then
-          echo "PACKAGE_MAJOR_MINOR must be MAJOR.MINOR, got '${MAJOR_MINOR}'"
-          exit 1
-        fi
-
-        # Use NuGet.org as the stable version source of truth.
-        NUGET_ID_LOWER="$(echo "${PACKAGE_ID}" | tr '[:upper:]' '[:lower:]')"
-        NUGET_VERSIONS="$(curl -fsSL "https://api.nuget.org/v3-flatcontainer/${NUGET_ID_LOWER}/index.json" || true)"
-
-        if python3 -c 'import json,sys; json.loads(sys.argv[1])' "${NUGET_VERSIONS}" >/dev/null 2>&1; then
-          LATEST_PATCH="$(python3 -c 'import json,re,sys; mm=sys.argv[1]; payload=json.loads(sys.argv[2]); versions=(payload.get("versions", []) if isinstance(payload, dict) else []); rx=re.compile(rf"^{re.escape(mm)}\\.(\\d+)$"); patches=[int(m.group(1)) for v in versions for m in [rx.match(v)] if m]; print(max(patches) if patches else -1)' "${MAJOR_MINOR}" "${NUGET_VERSIONS}")"
-        else
-          LATEST_PATCH=-1
-        fi
-
-        if [[ "${LATEST_PATCH}" -lt 0 ]]; then
-          NEXT_PATCH=0
-        else
-          NEXT_PATCH=$((LATEST_PATCH + 1))
-        fi
-
-        STABLE_VERSION="${MAJOR_MINOR}.${NEXT_PATCH}"
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          FINAL_VERSION="${STABLE_VERSION}-pr.${{ github.event.pull_request.number }}.${{ github.run_number }}"
-        else
-          FINAL_VERSION="${STABLE_VERSION}"
-        fi
-
-        echo "PackageId=${PACKAGE_ID}"
-        echo "BaseVersion=${BASE_VERSION}"
-        echo "MajorMinor=${MAJOR_MINOR}"
-        echo "LatestPatch=${LATEST_PATCH}"
-        echo "ResolvedVersion=${FINAL_VERSION}"
-
-        echo "value=${FINAL_VERSION}" >> "$GITHUB_OUTPUT"
-
-    - name: Pack
-      run: dotnet pack "${PROJECT_PATH}" --configuration Release --no-build --output artifacts "/p:PackageVersion=${{ steps.package_version.outputs.value }}"
-
-    - name: Publish to NuGet.org
-      if: ${{ github.event_name == 'push' && env.NUGET_API_KEY != '' }}
-      env:
-        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      shell: bash
-      run: |
-        shopt -s nullglob
-        for package in artifacts/*.nupkg artifacts/*.snupkg; do
-          dotnet nuget push "$package" \
-            --api-key "${NUGET_API_KEY}" \
-            --source "https://api.nuget.org/v3/index.json" \
-            --skip-duplicate
-        done
-
-    - name: Publish to GitHub Packages
-      if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      shell: bash
-      run: |
-        shopt -s nullglob
-        for package in artifacts/*.nupkg; do
-          dotnet nuget push "$package" --api-key "${GITHUB_TOKEN}" --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" --skip-duplicate
-        done
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PACKAGE_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in packages/*.nupkg; do
+            dotnet nuget push "$package" --api-key "$GITHUB_TOKEN" --source "https://nuget.pkg.github.com/$PACKAGE_OWNER/index.json" --no-symbols --skip-duplicate
+          done

@@ -1,11 +1,9 @@
-﻿using System.Runtime.CompilerServices;
-[assembly: InternalsVisibleTo("MarsArmories.ImperialDate.Tests")]
 namespace MarsArmories.ImperialDate.Internal;
 
 internal static class Constants
 {
-    internal const int MinYearFraction = 1;
-    internal const int MinYear = 1;
+    internal const int MinYearFraction = 0;
+    internal const int MinYear = 0;
     internal const int MinMillennium = 0;
     internal const int MaxYearFraction = 999;
     internal const int MaxYear = 999;

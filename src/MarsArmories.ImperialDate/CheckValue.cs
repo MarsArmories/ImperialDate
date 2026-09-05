@@ -1,28 +1,27 @@
-﻿namespace MarsArmories.ImperialDate;
+namespace MarsArmories.ImperialDate;
 
+/// <summary>Classifies the source or uncertainty of an Imperial date.</summary>
+/// <remarks>The numeric value is the leading digit in Imperial notation and participates in equality and ordering.</remarks>
 public enum CheckValue
 {
-    // Location-Based
-    //A 0 means that the event occurred on Terra.
+    /// <summary>The event occurred on Terra.</summary>
     Terra = 0,
-    //A 1 means that the event occurred within the Sol system.
+    /// <summary>The event occurred within the Sol system.</summary>
     Sol = 1,
-    // Contact-Based
-    //A 2 means that the event occurred while someone present for the event was in direct psychic contact with Terra or the Sol system.
+    /// <summary>A witness was in direct psychic contact with Terra or the Sol system.</summary>
     Secondary = 2,
-    //A 3 means that an individual or organization present was in psychic contact with a 2 source while the event occurred.
+    /// <summary>A source present was in psychic contact with a secondary source.</summary>
     Tertiary = 3,
-    //A 4 means that the individual or organization was in contact with a 3 OR 2 source.
+    /// <summary>A source present was in contact with a tertiary or secondary source.</summary>
     Four = 4,
-    //A 5 means that the individual or organization was in contact with a 4 source.
+    /// <summary>A source present was in contact with a class-four source.</summary>
     Five = 5,
-    //A 6 means that the individual or organization was in contact with a 5 source.
+    /// <summary>A source present was in contact with a class-five source.</summary>
     Six = 6,
-    // Estimation Based
-    //A 7 means that the event in question occurred within 10 years of the date listed in the rest of the Imperial date.
+    /// <summary>The event is estimated to be within ten years of the recorded date.</summary>
     Approximated10 = 7,
-    //An 8 means that the event occurred within 20 years of the date.
+    /// <summary>The event is estimated to be within twenty years of the recorded date.</summary>
     Approximated20 = 8,
-    //A 9-class source is special. A 9-class source is an approximated date and is usually used when recording a date within Warp travel or while on a planet that does not use the Imperial system.
+    /// <summary>An approximate date, typically during Warp travel or on a world using another calendar.</summary>
     Warp = 9
 }

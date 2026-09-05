@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" Version="4.0.0" />
+    <PackageReference Include="Microsoft.Testing.Platform.MSBuild" Version="2.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj" />
+  </ItemGroup>
+
+
+</Project>
