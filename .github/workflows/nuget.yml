@@ -24,11 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -79,7 +79,7 @@ jobs:
         run: dotnet pack "$PROJECT_PATH" --configuration Release --no-build --output .artifacts/packages -p:ContinuousIntegrationBuild=true -p:Version="$PACKAGE_VERSION" -p:PackageVersion="$PACKAGE_VERSION"
 
       - name: Retain packages and symbols
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-packages
           path: |
@@ -96,11 +96,11 @@ jobs:
     permissions:
       packages: write
     steps:
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nuget-packages
           path: packages
