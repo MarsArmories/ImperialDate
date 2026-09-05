@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MarsArmories.ImperialDate.Tests/MarsArmories.ImperialDate.Tests.csproj" />
+  </Folder>
+</Solution>
