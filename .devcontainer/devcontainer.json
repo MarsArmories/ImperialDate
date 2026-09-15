@@ -29,6 +29,5 @@
   },
   "forwardPorts": [],
   "postCreateCommand": "dotnet restore MarsArmories.ImperialDate.slnx",
-  "postStartCommand": "dotnet --info",
-  "overrideCommand": false
+  "postStartCommand": "dotnet --info"
 }
