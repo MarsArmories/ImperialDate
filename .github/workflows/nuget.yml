@@ -92,6 +92,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      contents: read
+      id-token: write
       packages: write
     steps:
       - uses: actions/setup-dotnet@v6
@@ -103,20 +105,22 @@ jobs:
           name: nuget-packages
           path: packages
 
+      - name: NuGet trusted publishing login
+        if: github.event_name == 'push'
+        id: login
+        uses: NuGet/login@v1
+        with:
+          # NuGet.org account username associated with trusted publishing.
+          user: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+
       - name: Publish to NuGet.org
         if: github.event_name == 'push'
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$NUGET_API_KEY" ]]; then
-            echo 'NuGet.org publishing skipped: NUGET_API_KEY is not configured.'
-            exit 0
-          fi
           shopt -s nullglob
           for package in packages/*.nupkg; do
-            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push "$package" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
 
       - name: Publish to GitHub Packages
