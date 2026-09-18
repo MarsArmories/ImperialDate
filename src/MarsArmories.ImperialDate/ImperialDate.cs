@@ -43,19 +43,19 @@ public readonly struct ImperialDate : IComparable, IFormattable, IComparable<Imp
     private ImperialDate(CheckValue checkValue, int yearFraction, int year, int millennium)
     {
         // CheckValue is a contiguous range; a range check avoids boxing the enum.
-        if (checkValue < CheckValue.Terra || checkValue > CheckValue.Warp)
+        if (checkValue is < CheckValue.Terra or > CheckValue.Warp)
         {
             throw new ArgumentOutOfRangeException(nameof(checkValue), checkValue, "Check must be between 0 and 9.");
         }
-        if (yearFraction < Constants.MinYearFraction || yearFraction > Constants.MaxYearFraction)
+        if (yearFraction is < Constants.MinYearFraction or > Constants.MaxYearFraction)
         {
             throw new ArgumentOutOfRangeException(nameof(yearFraction), yearFraction, "Year fraction must be between 0 and 999.");
         }
-        if (year < Constants.MinYear || year > Constants.MaxYear)
+        if (year is < Constants.MinYear or > Constants.MaxYear)
         {
             throw new ArgumentOutOfRangeException(nameof(year), year, "Year must be between 0 and 999.");
         }
-        if (millennium < Constants.MinMillennium || millennium > Constants.MaxMillennium)
+        if (millennium is < Constants.MinMillennium or > Constants.MaxMillennium)
         {
             throw new ArgumentOutOfRangeException(nameof(millennium), millennium, "Millennium must be between 0 and 999999.");
         }

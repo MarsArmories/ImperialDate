@@ -68,7 +68,7 @@ jobs:
       - name: Build
         env:
           PACKAGE_VERSION: ${{ steps.package_version.outputs.value }}
-        run: dotnet build "$SOLUTION_PATH" --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:Version="$PACKAGE_VERSION" -p:PackageVersion="$PACKAGE_VERSION" -warnaserror
+        run: dotnet build "$SOLUTION_PATH" --configuration Release --no-restore -p:Version="$PACKAGE_VERSION" -p:PackageVersion="$PACKAGE_VERSION" -warnaserror
 
       - name: Test
         run: dotnet test --solution "$SOLUTION_PATH" --configuration Release --no-build
@@ -76,15 +76,13 @@ jobs:
       - name: Pack
         env:
           PACKAGE_VERSION: ${{ steps.package_version.outputs.value }}
-        run: dotnet pack "$PROJECT_PATH" --configuration Release --no-build --output .artifacts/packages -p:ContinuousIntegrationBuild=true -p:Version="$PACKAGE_VERSION" -p:PackageVersion="$PACKAGE_VERSION"
+        run: dotnet pack "$PROJECT_PATH" --configuration Release --no-build --output .artifacts/packages -p:Version="$PACKAGE_VERSION" -p:PackageVersion="$PACKAGE_VERSION"
 
-      - name: Retain packages and symbols
+      - name: Retain packages
         uses: actions/upload-artifact@v7
         with:
           name: nuget-packages
-          path: |
-            .artifacts/packages/*.nupkg
-            .artifacts/packages/*.snupkg
+          path: .artifacts/packages/*.nupkg
           if-no-files-found: error
           include-hidden-files: true
 
@@ -117,11 +115,7 @@ jobs:
             exit 0
           fi
           shopt -s nullglob
-          # Publish packages and symbols explicitly, without uploading symbols twice.
           for package in packages/*.nupkg; do
-            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --no-symbols --skip-duplicate
-          done
-          for package in packages/*.snupkg; do
             dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
 
@@ -133,5 +127,5 @@ jobs:
         run: |
           set -euo pipefail
           for package in packages/*.nupkg; do
-            dotnet nuget push "$package" --api-key "$GITHUB_TOKEN" --source "https://nuget.pkg.github.com/$PACKAGE_OWNER/index.json" --no-symbols --skip-duplicate
+            dotnet nuget push "$package" --api-key "$GITHUB_TOKEN" --source "https://nuget.pkg.github.com/$PACKAGE_OWNER/index.json" --skip-duplicate
           done
