@@ -10,7 +10,4 @@ From the repository root, run:
 dotnet test --no-restore
 ```
 
-The .NET 11 SDK should be added to the `dotnet` Feature's `additionalVersions`
-option once the desired .NET 11 SDK is published and the project needs to target it.
-Keeping .NET 10 as the selected SDK preserves the exact version required by this
-repository today.
+If the project later needs to target .NET 11, update the base image tag (or add an SDK install step) so the required 11.x SDK is available alongside the version pinned by `global.json`.
