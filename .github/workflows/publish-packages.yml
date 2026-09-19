@@ -94,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           for package in .artifacts/package/release/*.nupkg; do
-            dotnet nuget push "$package" --source "$NUGET_SOURCE" --api-key "$NUGET_API_KEY" --no-symbols
+            dotnet nuget push "$package" --source "$NUGET_SOURCE" --api-key "$NUGET_API_KEY" --no-symbols --skip-duplicate
           done
 
       - name: Upload package artifacts
