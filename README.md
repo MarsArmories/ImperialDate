@@ -105,11 +105,9 @@ dotnet test --solution MarsArmories.ImperialDate.slnx --configuration Release --
 dotnet pack src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj --configuration Release --no-build --output .artifacts/packages
 ```
 
-Tests cover calendar boundaries, leap years, fraction precision, tick validation, formatting, equality, and ordering. The library has no NuGet runtime dependencies. The NuGet package includes this README and XML documentation for IntelliSense. Public API documentation warnings fail the library build.
+Tests cover calendar boundaries, leap years, fraction precision, tick validation, formatting, equality, and ordering. The library has no NuGet runtime dependencies. The NuGet package includes this README, the changelog, the license, and XML documentation for IntelliSense. Public API documentation warnings fail the library build.
 
-CI builds and tests pushes and pull requests to `main`. It derives the next patch version from NuGet.org for the configured major/minor version, applies that version to both the assembly and package, and retains packages and symbols as workflow artifacts. Publishing runs in a separate job after validation. Pushes publish to NuGet.org when `NUGET_API_KEY` is configured and to GitHub Packages using the workflow token. Pull requests from the same repository publish prerelease packages to GitHub Packages, with the PR, run, and attempt numbers in their versions. Fork and Dependabot pull requests build, test, and pack without publishing.
-
-Release-version logic lives in `.github/scripts/Get-PackageVersion.ps1`. Run its offline regression checks with `pwsh -File .github/scripts/Test-PackageVersion.ps1`; CI runs these checks too.
+CI (`.github/workflows/ci.yml`) builds and tests pushes and pull requests to `main` with code coverage, and packs prerelease artifacts for pull requests without publishing them. Releases are tag-driven: pushing a `v*` tag (for example `v2.1.0`) runs `.github/workflows/publish-nuget-org.yml` and `.github/workflows/publish-packages.yml`, which derive the package version from the tag, build, test, pack, publish to NuGet.org (via trusted publishing) and GitHub Packages, and create a GitHub release from the matching `CHANGELOG.md` entry. Add a `## [x.y.z]` section to `CHANGELOG.md` before tagging a release; the NuGet.org publish job fails if no matching entry exists.
 
 ## License
 
