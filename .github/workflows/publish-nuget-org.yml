@@ -1,0 +1,195 @@
+name: Publish to NuGet.org
+run-name: Publish NuGet.org packages from ${{ github.event.inputs.tag || github.ref_name }} by @${{ github.actor }}
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish, for example v2.1.0 or v2.1.0-rc.1
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  DOTNET_NOLOGO: true
+  SOLUTION_PATH: MarsArmories.ImperialDate.slnx
+  PROJECT_PATH: src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj
+  PACKAGE_ID: MarsArmories.ImperialDate
+
+concurrency:
+  group: nuget-org-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish-nuget-org:
+    name: Publish to NuGet.org
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: nuget.org
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Resolve package version from tag
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+          REQUESTED_RELEASE_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            RELEASE_TAG="$REQUESTED_RELEASE_TAG"
+          elif [ "$RELEASE_REF_TYPE" != "tag" ]; then
+            echo "::error::Package publication requires a tag."
+            exit 1
+          fi
+
+          if ! git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
+            echo "::error::Tag '$RELEASE_TAG' does not exist."
+            exit 1
+          fi
+
+          package_version="${RELEASE_TAG#v}"
+          if ! printf '%s' "$package_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$'; then
+            echo "::error::Tag '$RELEASE_TAG' is not a supported SemVer release tag."
+            exit 1
+          fi
+
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "PACKAGE_VERSION=$package_version" >> "$GITHUB_ENV"
+          echo "Publishing package version: $package_version"
+
+      - name: Restore
+        run: |
+          echo "::group::Restore"
+          dotnet restore "$SOLUTION_PATH"
+          echo "::endgroup::"
+
+      - name: Build
+        run: |
+          echo "::group::Build"
+          dotnet build "$SOLUTION_PATH" --configuration Release --no-restore -p:Version="$PACKAGE_VERSION" -p:InformationalVersion="$PACKAGE_VERSION" -warnaserror
+          echo "::endgroup::"
+
+      - name: Test with coverage
+        run: |
+          echo "::group::Test with coverage"
+          mkdir -p .artifacts/test-results
+          dotnet test --solution "$SOLUTION_PATH" --configuration Release --no-build --coverage --coverage-output .artifacts/test-results/coverage.cobertura.xml --coverage-output-format cobertura
+          echo "::endgroup::"
+
+      - name: Pack
+        run: |
+          echo "::group::Pack"
+          dotnet pack "$PROJECT_PATH" --configuration Release --no-build --output .artifacts/package/release -p:Version="$PACKAGE_VERSION"
+          echo "::endgroup::"
+
+      - name: Validate package artifacts
+        run: |
+          set -euo pipefail
+          test -f ".artifacts/package/release/${PACKAGE_ID}.${PACKAGE_VERSION}.nupkg"
+
+      - name: NuGet login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish packages
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          for package in .artifacts/package/release/*.nupkg; do
+            dotnet nuget push "$package" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_API_KEY" --skip-duplicate
+          done
+
+      - name: Prepare release notes
+        run: |
+          set -euo pipefail
+          awk -v version="$PACKAGE_VERSION" '
+            $0 == "## [" version "]" || index($0, "## [" version "] - ") == 1 {
+              found = 1
+              next
+            }
+            found && /^## \[/ {
+              exit
+            }
+            found {
+              print
+            }
+            END {
+              if (!found) {
+                exit 1
+              }
+            }
+          ' CHANGELOG.md > .artifacts/release-notes.md
+          sed -i '/./,$!d' .artifacts/release-notes.md
+          test -s .artifacts/release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release '$RELEASE_TAG' already exists."
+            exit 0
+          fi
+
+          release_args=()
+          if [[ "$PACKAGE_VERSION" == *-* ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "$RELEASE_TAG" \
+            --notes-file .artifacts/release-notes.md \
+            "${release_args[@]}"
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-org-packages
+          path: |
+            .artifacts/package/release/*.nupkg
+            .artifacts/package/release/*.snupkg
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: TestResults/.artifacts/test-results/coverage.cobertura.xml
+
+      - name: Publish summary
+        if: always()
+        run: |
+          {
+            echo "## ImperialDate NuGet.org Publish"
+            echo
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Build | complete |"
+            echo "| Tests | complete |"
+            echo "| Coverage | Cobertura files uploaded as artifact \`coverage\` |"
+            echo "| Packages | pushed to NuGet.org |"
+            echo "| Release | created or already present for \`$RELEASE_TAG\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

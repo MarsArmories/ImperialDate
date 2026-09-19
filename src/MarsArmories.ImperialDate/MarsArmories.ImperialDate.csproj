@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <PackageVersion>2.0.0</PackageVersion>
     <Title>MarsArmories.ImperialDate</Title>
     <Description>A .NET implementation of the 40k Imperial date similar to DateTime.</Description>
     <Authors>MarsArmories</Authors>
@@ -17,6 +16,8 @@
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../CHANGELOG.md" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>

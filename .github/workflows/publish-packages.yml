@@ -1,0 +1,126 @@
+name: Publish Packages
+run-name: Publish packages from ${{ github.ref_name }} by @${{ github.actor }}
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DOTNET_NOLOGO: true
+  SOLUTION_PATH: MarsArmories.ImperialDate.slnx
+  PROJECT_PATH: src/MarsArmories.ImperialDate/MarsArmories.ImperialDate.csproj
+  PACKAGE_ID: MarsArmories.ImperialDate
+
+concurrency:
+  group: github-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-github:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Resolve package version from tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          if [ "$RELEASE_REF_TYPE" != "tag" ]; then
+            echo "::error::Package publication requires a tag."
+            exit 1
+          fi
+
+          package_version="${RELEASE_TAG#v}"
+          if ! printf '%s' "$package_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$'; then
+            echo "::error::Tag '$RELEASE_TAG' is not a supported SemVer release tag."
+            exit 1
+          fi
+
+          echo "PACKAGE_VERSION=$package_version" >> "$GITHUB_ENV"
+          echo "Publishing package version: $package_version"
+
+      - name: Restore
+        run: |
+          echo "::group::Restore"
+          dotnet restore "$SOLUTION_PATH"
+          echo "::endgroup::"
+
+      - name: Build
+        run: |
+          echo "::group::Build"
+          dotnet build "$SOLUTION_PATH" --configuration Release --no-restore -p:Version="$PACKAGE_VERSION" -p:InformationalVersion="$PACKAGE_VERSION" -warnaserror
+          echo "::endgroup::"
+
+      - name: Test with coverage
+        run: |
+          echo "::group::Test with coverage"
+          mkdir -p .artifacts/test-results
+          dotnet test --solution "$SOLUTION_PATH" --configuration Release --no-build --coverage --coverage-output .artifacts/test-results/coverage.cobertura.xml --coverage-output-format cobertura
+          echo "::endgroup::"
+
+      - name: Pack
+        run: |
+          echo "::group::Pack"
+          dotnet pack "$PROJECT_PATH" --configuration Release --no-build --output .artifacts/package/release -p:Version="$PACKAGE_VERSION"
+          echo "::endgroup::"
+
+      - name: Validate package artifacts
+        run: |
+          set -euo pipefail
+          test -f ".artifacts/package/release/${PACKAGE_ID}.${PACKAGE_VERSION}.nupkg"
+
+      - name: Publish packages
+        env:
+          NUGET_SOURCE: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          NUGET_API_KEY: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for package in .artifacts/package/release/*.nupkg; do
+            dotnet nuget push "$package" --source "$NUGET_SOURCE" --api-key "$NUGET_API_KEY" --no-symbols --skip-duplicate
+          done
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-packages
+          path: |
+            .artifacts/package/release/*.nupkg
+            .artifacts/package/release/*.snupkg
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: TestResults/.artifacts/test-results/coverage.cobertura.xml
+
+      - name: Publish summary
+        if: always()
+        run: |
+          {
+            echo "## ImperialDate Package Publish"
+            echo
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Build | complete |"
+            echo "| Tests | complete |"
+            echo "| Coverage | Cobertura files uploaded as artifact \`coverage\` |"
+            echo "| Packages | uploaded as artifact \`nuget-packages\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
